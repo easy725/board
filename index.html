@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>학급 알림판</title>
+<style>
+  :root {
+    --bg: #e3f1ef;
+    --ink: #123b3b;
+    --ink-soft: #3f6b6a;
+    --teal: #1f7a7a;
+    --teal-deep: #155b5b;
+    --panel: #f6fbfa;
+    --line: #b9d9d5;
+
+    --notice-bg: #fff1c9;  --notice-bd: #ecc65a;  --notice-tag: #8a6100;
+    --todo-bg:   #d5e9fb;  --todo-bd:   #86b8e6;  --todo-tag:   #1d5a92;
+    --praise-bg: #fcdde6;  --praise-bd: #ec9db4;  --praise-tag: #a3294f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    font-size: clamp(20px, 1.5vw, 30px);
+    line-height: 1.45;
+    min-height: 100vh;
+    padding: 2.2vw 3vw 3vw;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.2rem;
+  }
+  h1 {
+    margin: 0;
+    font-size: 2.6em;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--teal-deep);
+  }
+  .sub { font-size: 1.05em; color: var(--ink-soft); font-weight: 600; }
+
+  #form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    align-items: stretch;
+    background: var(--panel);
+    border: 2px solid var(--line);
+    border-radius: 18px;
+    padding: 0.9rem;
+    margin-bottom: 1.6rem;
+  }
+  .types { display: flex; gap: 0.4rem; }
+  .types label { cursor: pointer; }
+  .types input { position: absolute; opacity: 0; pointer-events: none; }
+  .types span {
+    display: block;
+    padding: 0.55em 1em;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    font-weight: 700;
+    background: #e7f0ef;
+    color: var(--ink-soft);
+  }
+  .types input[value="notice"]:checked + span { background: var(--notice-bg); border-color: var(--notice-bd); color: var(--notice-tag); }
+  .types input[value="todo"]:checked + span   { background: var(--todo-bg);   border-color: var(--todo-bd);   color: var(--todo-tag); }
+  .types input[value="praise"]:checked + span { background: var(--praise-bg); border-color: var(--praise-bd); color: var(--praise-tag); }
+  .types input:focus-visible + span { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+  #text {
+    flex: 1 1 320px;
+    font: inherit;
+    padding: 0.55em 0.9em;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--ink);
+    min-width: 0;
+  }
+  #text:focus { outline: 3px solid var(--teal); outline-offset: 1px; border-color: var(--teal); }
+  #add {
+    font: inherit;
+    font-weight: 800;
+    padding: 0.55em 1.6em;
+    border: 0;
+    border-radius: 12px;
+    background: var(--teal);
+    color: #fff;
+    cursor: pointer;
+  }
+  #add:hover { background: var(--teal-deep); }
+  #add:focus-visible { outline: 3px solid var(--teal-deep); outline-offset: 3px; }
+
+  .tools { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .status { font-size: 0.8em; font-weight: 700; color: var(--teal); }
+  .status.warn { color: #a3421f; }
+  .mini {
+    font: inherit; font-size: 0.8em; font-weight: 700;
+    border: 2px solid var(--line); background: var(--panel); color: var(--teal-deep);
+    border-radius: 10px; padding: 0.25em 0.8em; cursor: pointer;
+  }
+  .mini:hover { background: #fff; border-color: var(--teal); }
+  .mini:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+  /* TV 모드: 큰 글씨, 입력·버튼 숨김 */
+  body.tv { font-size: clamp(28px, 2.7vw, 60px); padding: 2.5vw 3.5vw; }
+  body.tv #form,
+  body.tv #status,
+  body.tv #export,
+  body.tv #import,
+  body.tv .del { display: none; }
+  body.tv #list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 18em), 1fr)); gap: 1.4rem; }
+  body.tv .card { padding: 1.2rem 1.5rem 1rem; }
+  body.tv #tv {
+    position: fixed; right: 1.2rem; bottom: 1rem;
+    opacity: 0.25; z-index: 10;
+  }
+  body.tv #tv:hover, body.tv #tv:focus-visible { opacity: 1; }
+
+  #list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22em), 1fr));
+    gap: 1.1rem;
+  }
+  .card {
+    border: 3px solid;
+    border-radius: 20px;
+    padding: 1rem 1.2rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .card.notice { background: var(--notice-bg); border-color: var(--notice-bd); }
+  .card.todo   { background: var(--todo-bg);   border-color: var(--todo-bd); }
+  .card.praise { background: var(--praise-bg); border-color: var(--praise-bd); }
+
+  .top { display: flex; align-items: center; gap: 0.7rem; }
+  .tag { font-weight: 800; font-size: 0.85em; }
+  .notice .tag { color: var(--notice-tag); }
+  .todo .tag   { color: var(--todo-tag); }
+  .praise .tag { color: var(--praise-tag); }
+  .check {
+    width: 1.5em; height: 1.5em;
+    accent-color: var(--teal-deep);
+    cursor: pointer;
+    flex: none;
+  }
+  .msg {
+    font-size: 1.25em;
+    font-weight: 700;
+    line-height: 1.4;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    margin: 0;
+  }
+  .card.done .msg { opacity: 0.45; text-decoration: line-through; text-decoration-thickness: 3px; }
+  .card.done .tag { opacity: 0.6; }
+
+  .bottom {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: var(--ink-soft);
+    font-size: 0.8em;
+  }
+  .del {
+    font: inherit;
+    font-size: 0.9em;
+    font-weight: 700;
+    border: 2px solid rgba(18, 59, 59, 0.25);
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 0.25em 0.8em;
+    cursor: pointer;
+  }
+  .del:hover { background: #fff; border-color: #b23a48; color: #b23a48; }
+  .del:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+  .empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--ink-soft);
+    font-weight: 600;
+    padding: 3rem 1rem;
+    border: 3px dashed var(--line);
+    border-radius: 20px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1 id="today"></h1>
+    <div class="tools">
+      <span id="status" class="status"></span>
+      <button type="button" class="mini" id="export">백업 저장</button>
+      <button type="button" class="mini" id="import">백업 불러오기</button>
+      <button type="button" class="mini" id="tv">TV 모드</button>
+      <input type="file" id="file" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <div id="form">
+    <div class="types" role="radiogroup" aria-label="알림 종류">
+      <label><input type="radio" name="type" value="notice" checked><span>알림</span></label>
+      <label><input type="radio" name="type" value="todo"><span>할 일</span></label>
+      <label><input type="radio" name="type" value="praise"><span>칭찬</span></label>
+    </div>
+    <input id="text" type="text" placeholder="알릴 내용을 적어 주세요" aria-label="알림 내용">
+    <button id="add" type="button">추가</button>
+  </div>
+
+  <ul id="list" aria-live="polite"></ul>
+
+<script>
+(function () {
+  var KEY = "classBoard.items.v1";
+  var LABEL = { notice: "알림", todo: "할 일", praise: "칭찬" };
+  var items = [];
+
+  var todayEl = document.getElementById("today");
+  var form = document.getElementById("form");
+  var input = document.getElementById("text");
+  var listEl = document.getElementById("list");
+
+  var DB = "classBoard", STORE = "kv";
+  var statusEl = document.getElementById("status");
+
+  function setStatus(ok) {
+    statusEl.textContent = ok ? "✔ 이 브라우저에 자동 저장 중" : "⚠ 자동 저장이 막혀 있어요. 백업 저장을 이용하세요";
+    statusEl.className = "status" + (ok ? "" : " warn");
+  }
+  function idb(cb) {
+    try {
+      var r = indexedDB.open(DB, 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore(STORE); };
+      r.onsuccess = function () { cb(r.result); };
+      r.onerror = function () { cb(null); };
+    } catch (e) { cb(null); }
+  }
+  function idbSave(json) {
+    idb(function (db) {
+      if (!db) return;
+      try { db.transaction(STORE, "readwrite").objectStore(STORE).put(json, KEY); } catch (e) {}
+    });
+  }
+  function idbLoad(cb) {
+    idb(function (db) {
+      if (!db) return cb(null);
+      try {
+        var q = db.transaction(STORE).objectStore(STORE).get(KEY);
+        q.onsuccess = function () { cb(q.result || null); };
+        q.onerror = function () { cb(null); };
+      } catch (e) { cb(null); }
+    });
+  }
+  function parseItems(raw) {
+    try {
+      var d = JSON.parse(raw);
+      if (!Array.isArray(d)) return [];
+      return d.filter(function (x) {
+        return x && typeof x.text === "string" && LABEL[x.type] && typeof x.ts === "number";
+      }).map(function (x) {
+        return { id: String(x.id || x.ts), type: x.type, text: x.text, ts: x.ts, done: !!x.done };
+      });
+    } catch (e) { return []; }
+  }
+  function save() {
+    var json = JSON.stringify(items);
+    var ok = false;
+    try { localStorage.setItem(KEY, json); ok = localStorage.getItem(KEY) === json; } catch (e) {}
+    idbSave(json);
+    setStatus(ok);
+  }
+  function load() {
+    var ok = false;
+    try {
+      localStorage.setItem(KEY + ".probe", "1");
+      localStorage.removeItem(KEY + ".probe");
+      ok = true;
+      items = parseItems(localStorage.getItem(KEY) || "[]");
+    } catch (e) { items = []; }
+    setStatus(ok);
+    if (!items.length) {
+      idbLoad(function (raw) {
+        var got = raw ? parseItems(raw) : [];
+        if (got.length && !items.length) { items = got; save(); render(); }
+      });
+    }
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  }
+
+  function exportBackup() {
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    var name = "학급알림판-백업-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".json";
+    var blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  function importBackup(file) {
+    if (!file) return;
+    var fr = new FileReader();
+    fr.onload = function () {
+      var got = parseItems(String(fr.result));
+      if (!got.length) { alert("불러올 알림이 없어요. 백업 파일을 확인해 주세요."); return; }
+      var seen = {};
+      items.forEach(function (x) { seen[x.id] = true; });
+      got.forEach(function (x) { if (!seen[x.id]) items.push(x); });
+      items.sort(function (a, b) { return b.ts - a.ts; });
+      save();
+      render();
+    };
+    fr.readAsText(file);
+  }
+
+  /* 날짜: 예) 9월 25일 금요일 (자정이 지나면 자동 갱신) */
+  function renderDate() {
+    var d = new Date();
+    var days = ["일", "월", "화", "수", "목", "금", "토"];
+    todayEl.textContent = (d.getMonth() + 1) + "월 " + d.getDate() + "일 " + days[d.getDay()] + "요일";
+  }
+
+  function timeText(ts) {
+    var d = new Date(ts);
+    var h = d.getHours(), m = d.getMinutes();
+    var ap = h < 12 ? "오전" : "오후";
+    var h12 = h % 12 === 0 ? 12 : h % 12;
+    return ap + " " + h12 + ":" + (m < 10 ? "0" : "") + m;
+  }
+
+  function render() {
+    listEl.textContent = "";
+    if (!items.length) {
+      var li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = document.body.classList.contains("tv") ? "오늘의 알림이 아직 없어요." : "아직 알림이 없어요. 위 입력창에 오늘의 알림을 적어 보세요.";
+      listEl.appendChild(li);
+      return;
+    }
+    items.forEach(function (it) {
+      var li = document.createElement("li");
+      li.className = "card " + it.type + (it.done ? " done" : "");
+
+      var top = document.createElement("div");
+      top.className = "top";
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "check";
+      cb.checked = !!it.done;
+      cb.setAttribute("aria-label", "완료 표시");
+      cb.addEventListener("change", function () {
+        it.done = cb.checked;
+        save();
+        render();
+      });
+      var tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = LABEL[it.type] || "알림";
+      top.appendChild(cb);
+      top.appendChild(tag);
+
+      var msg = document.createElement("p");
+      msg.className = "msg";
+      msg.textContent = it.text;
+
+      var bottom = document.createElement("div");
+      bottom.className = "bottom";
+      var time = document.createElement("span");
+      time.textContent = timeText(it.ts);
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "del";
+      del.textContent = "삭제";
+      del.addEventListener("click", function () {
+        items = items.filter(function (x) { return x.id !== it.id; });
+        save();
+        render();
+      });
+      bottom.appendChild(time);
+      bottom.appendChild(del);
+
+      li.appendChild(top);
+      li.appendChild(msg);
+      li.appendChild(bottom);
+      listEl.appendChild(li);
+    });
+  }
+
+  function addItem() {
+    var text = input.value.trim();
+    if (!text) { input.focus(); return; }
+    var checked = form.querySelector('input[name="type"]:checked');
+    var type = checked ? checked.value : "notice";
+    var now = Date.now();
+    items.unshift({ id: now + "-" + Math.random().toString(36).slice(2, 7), type: type, text: text, ts: now, done: false });
+    save();
+    render();
+    input.value = "";
+    input.focus();
+  }
+
+  /* 한글 입력 중(조합 중)에 Enter를 치면 브라우저가 keydown을 두 번 보내는 문제 방지:
+     조합 중인 keydown(isComposing / keyCode 229)은 무시하고, 조합이 끝난 Enter만 처리 */
+  input.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (e.isComposing || e.keyCode === 229) return;
+    addItem();
+  });
+
+  document.getElementById("add").addEventListener("click", addItem);
+
+  document.getElementById("export").addEventListener("click", exportBackup);
+  var fileEl = document.getElementById("file");
+  document.getElementById("import").addEventListener("click", function () { fileEl.click(); });
+  fileEl.addEventListener("change", function () { importBackup(fileEl.files[0]); fileEl.value = ""; });
+
+  load();
+  renderDate();
+  render();
+  setInterval(renderDate, 60 * 1000);
+
+  /* TV 모드 */
+  var tvBtn = document.getElementById("tv");
+  var TVKEY = "classBoard.tv.v1";
+  var wake = null, fsByUs = false;
+  function isTv() { return document.body.classList.contains("tv"); }
+  function keepAwake(on) {
+    try {
+      if (wake) { wake.release(); wake = null; }
+      if (on && navigator.wakeLock) {
+        navigator.wakeLock.request("screen").then(function (l) { wake = l; }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+  function setTv(on, fromUser) {
+    document.body.classList.toggle("tv", on);
+    tvBtn.textContent = on ? "TV 모드 끝내기" : "TV 모드";
+    try { localStorage.setItem(TVKEY, on ? "1" : "0"); } catch (e) {}
+    keepAwake(on);
+    if (fromUser) {
+      try {
+        if (on && document.documentElement.requestFullscreen) {
+          var pr = document.documentElement.requestFullscreen();
+          if (pr && pr.then) pr.then(function () { fsByUs = true; }).catch(function () {});
+        } else if (!on && document.fullscreenElement) {
+          fsByUs = false;
+          document.exitFullscreen();
+        }
+      } catch (e) {}
+    }
+    render();
+  }
+  tvBtn.addEventListener("click", function () { setTv(!isTv(), true); });
+  document.addEventListener("fullscreenchange", function () {
+    if (!document.fullscreenElement && fsByUs) { fsByUs = false; if (isTv()) setTv(false, false); }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && isTv()) setTv(false, true);
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && isTv()) keepAwake(true);
+  });
+  try { if (localStorage.getItem(TVKEY) === "1") setTv(true, false); } catch (e) {}
+})();
+</script>
+</body>
+</html>
